@@ -1,168 +1,267 @@
 '''
-五子棋遊戲，單機命令列版 -- 作者：陳鍾誠
+簡化的五子棋遊戲 - 命令列版本
 
-人對人下  ：python gomoku.py P P
-人對電腦  ：python gomoku.py P C
-電腦對電腦：python gomoku.py C C
+使用方法：
+人對人下  ：python gomoku_claude.py P P
+人對電腦  ：python gomoku_claude.py P C
+電腦對電腦：python gomoku_claude.py C C
 '''
 
 import sys
 import time
-#  棋盤物件
+import random
+
 class Board:
-
-    def __init__(self, rMax, cMax):
-        self.m = [None] * rMax
-        self.rMax = rMax
-        self.cMax = cMax
-        for r in range(rMax):
-            self.m[r] = [None] * cMax
-            for c in range(cMax):
-                self.m[r][c] = '-'
-
-    #  將棋盤格式化成字串
-    def __str__(self):
-        b = []
-        b.append('  0 1 2 3 4 5 6 7 8 9 a b c d e f')
-        for r in range(self.rMax):
-            b.append('{:x} {:s} {:x}'.format(r, ' '.join(self.m[r]), r))
-            # r.toString(16) + ' ' + self.m[r].join(' ') + ' ' + r.toString(16) + '\n'
-
-        b.append('  0 1 2 3 4 5 6 7 8 9 a b c d e f')
-        return '\n'.join(b)
-
-    #  顯示棋盤
-    def show(self):
-        print(str(self))
-
-#  以下為遊戲相關資料與函數
-#  zero = [ 0, 0, 0, 0, 0]
-#  inc  = [-2,-1, 0, 1, 2]
-#  dec  = [ 2, 1, 0,-1,-2]
-z9 = [0, 0, 0, 0, 0, 0, 0, 0, 0]
-i9 = [-4, -3, -2, -1, 0, 1, 2, 3, 4]
-d9 = [4, 3, 2, 1, 0, -1, -2, -3, -4]
-z5 = [0, 0, 0, 0, 0]
-i2 = i9[2:-2]
-d2 = d9[2:-2]
-
-#  檢查在 (r, c) 這一格，規則樣式 (dr, dc) 是否被滿足
-#  dr, dc 的組合可用來代表「垂直 | , 水平 - , 下斜 \ , 上斜 /」。
-def patternCheck(board, turn, r, c, dr, dc):
-    for i in range(len(dr)):
-        tr = round(r + dr[i])
-        tc = round(c + dc[i])
-        if tr < 0 or tr >= board.rMax or tc < 0 or tc >= board.cMax:
-            return False
-        v = board.m[tr][tc]
-        if (v != turn):
-            return False
+    def __init__(self, size=15):
+        # 初始化棋盤大小，預設為15×15
+        self.size = size
+        # 建立二維陣列作為棋盤
+        self.grid = [['-' for _ in range(size)] for _ in range(size)]
     
-    return True
+    def display(self):
+        # 顯示棋盤
+        # 顯示行座標
+        print('  ' + ' '.join([hex(i)[2:] for i in range(self.size)]))
+        # 顯示每一行及列座標
+        for i in range(self.size):
+            print(hex(i)[2:] + ' ' + ' '.join(self.grid[i]) + ' ' + hex(i)[2:])
+        # 顯示行座標
+        print('  ' + ' '.join([hex(i)[2:] for i in range(self.size)]))
+    
+    def is_valid_move(self, row, col):
+        # 檢查移動是否有效
+        if row < 0 or row >= self.size or col < 0 or col >= self.size:
+            return False
+        if self.grid[row][col] != '-':
+            return False
+        return True
+    
+    def make_move(self, row, col, player):
+        # 下子
+        if self.is_valid_move(row, col):
+            self.grid[row][col] = player
+            return True
+        return False
+    
+    def check_win(self, row, col, player):
+        # 檢查勝負的方向：水平、垂直、主對角線、副對角線
+        directions = [
+            [(0, 1), (0, -1)],  # 水平
+            [(1, 0), (-1, 0)],  # 垂直
+            [(1, 1), (-1, -1)], # 主對角線
+            [(1, -1), (-1, 1)]  # 副對角線
+        ]
+        
+        for direction in directions:
+            count = 1  # 包含目前位置
+            
+            # 向兩個方向檢查
+            for dx, dy in direction:
+                for step in range(1, 5):  # 五子棋需要連續5顆
+                    r, c = row + dx * step, col + dy * step
+                    if 0 <= r < self.size and 0 <= c < self.size and self.grid[r][c] == player:
+                        count += 1
+                    else:
+                        break
+            
+            if count >= 5:
+                return True
+        
+        return False
+    
+    def is_full(self):
+        # 檢查棋盤是否已滿
+        for row in self.grid:
+            if '-' in row:
+                return False
+        return True
 
-#  檢查是否下 turn 這個子的人贏了。
-def winCheck(board, turn):
-    win = False
-    tie = True
-    for r in range(board.rMax):
-        for c in range(board.cMax):
-            tie = False if board.m[r][c] == '-' else tie
-            win = True if patternCheck(board, turn, r, c, z5, i2) else win #  水平 -
-            win = True if patternCheck(board, turn, r, c, i2, z5) else win #  垂直 |
-            win = True if patternCheck(board, turn, r, c, i2, i2) else win #  下斜 \
-            win = True if patternCheck(board, turn, r, c, i2, d2) else win #  上斜 /
-    if (win):
-        print('{} 贏了！'.format(turn))  #  如果贏了就印出贏了
-        sys.exit() #  然後離開。
-
-    if (tie):
-        print('平手')
-        sys.exit(0) #  然後離開。
-
-    return win
-
-attackScores = [0, 3, 10, 30, 100, 500]
-guardScores = [0, 2, 9, 25, 90, 400]
-attack = 1
-guard = 2
-
-def getScore(board, r, c, turn, mode):
-    score = 0
-    mScores = attackScores if mode == attack else guardScores
-    board.m[r][c] = turn
-    for start in range(5):
-        for len1 in reversed(range(5)):
-            length = len1 + 1
-            zero = z9[start: start + length]
-            inc  = i9[start: start + length]
-            dec  = d9[start: start + length]
-            if patternCheck(board, turn, r, c, zero, inc):
-                score += mScores[length] #  得分：水平 -
-            if patternCheck(board, turn, r, c, inc, zero):
-                score += mScores[length] #  得分：垂直 | 
-            if patternCheck(board, turn, r, c, inc, inc):
-                score += mScores[length] #  得分：下斜 \
-            if patternCheck(board, turn, r, c, inc, dec):
-                score += mScores[length] #  得分：上斜 /
-
-    if r == 0 or r == board.rMax:
-        score = score - 1
-    if c == 0 or c == board.cMax:
-        score = score - 1
-    board.m[r][c] = '-'
-    return score
-
-def peopleTurn(board, turn):
-    try:
-        xy = input('將 {} 下在: '.format(turn))
-        r = int(xy[0], 16) #  取得下子的列 r (row)
-        c = int(xy[1], 16) #  取得下子的行 c (column)
-        if r < 0 or r > board.rMax or c < 0 or c > board.cMax: #  檢查是否超出範圍
-            raise Exception('(row, col) 超出範圍!') #  若超出範圍就丟出例外，下一輪重新輸入。
-        if board.m[r][c] != '-': #  檢查該位置是否已被佔據
-            raise Exception('({}{}) 已經被佔領了!'.format(xy[0], xy[1])) #  若被佔據就丟出例外，下一輪重新輸入。
-        board.m[r][c] = turn #  否則、將子下在使用者輸入的 (r,c) 位置
-    except Exception as error:
-        print(error)
-        peopleTurn(board, turn)
-
-def computerTurn(board, turn):
-    best = {'r': 0, 'c': 0, 'score': -1}
-    for r in range(board.rMax):
-        for c in range(board.cMax):
-            if (board.m[r][c] != '-'):
+def human_turn(board, player):
+    while True:
+        try:
+            move = input(f'請輸入{player}的位置 (例如: 88): ')
+            if len(move) != 2:
+                print('請輸入兩個字元，分別代表列和行')
                 continue
-            enermy = 'o' if turn == 'x' else 'x'
-            attackScore = getScore(board, r, c, turn, attack)  #  攻擊分數
-            guardScore = getScore(board, r, c, enermy, guard)   #  防守分數
-            score = attackScore + guardScore
-            if r==8 and c==8: # 電腦若是第一手應該下 (8,8)
-                score += 1
-            if score > best['score']:
-                best['r'] = r
-                best['c'] = c
-                best['score'] = score
+                
+            row = int(move[0], 16)
+            col = int(move[1], 16)
+            
+            if board.make_move(row, col, player):
+                return row, col
+            else:
+                print('無效的移動，請重試')
+        except ValueError:
+            print('請輸入有效的十六進制數字')
 
-    board.m[best['r']][best['c']] = turn #  將子下在分數最高的位置
+def computer_turn(board, player):
+    # 對手的棋子
+    opponent = 'o' if player == 'x' else 'x'
+    
+    # 評分函數 - 計算每個位置的分數
+    def score_position(r, c):
+        if not board.is_valid_move(r, c):
+            return -1
+        
+        score = 0
+        
+        # 檢查各方向
+        directions = [
+            [(0, 1), (0, -1)],  # 水平
+            [(1, 0), (-1, 0)],  # 垂直
+            [(1, 1), (-1, -1)], # 主對角線
+            [(1, -1), (-1, 1)]  # 副對角線
+        ]
+        
+        # 攻擊分數權重比防守略高
+        for direction in directions:
+            # 計算攻擊分數
+            score += check_line(r, c, direction, player, board)
+            # 計算防守分數，權重略低
+            score += check_line(r, c, direction, opponent, board) * 0.9
+        
+        # 中心位置優先
+        center = board.size // 2
+        distance_from_center = abs(r - center) + abs(c - center)
+        score -= distance_from_center * 0.1
+        
+        return score
+    
+    # 檢查某方向上的連子情況
+    def check_line(r, c, direction, piece, board):
+        line_score = 0
+        empty_ends = 0  # 記錄兩端是否為空
+        consecutive = 0  # 連續棋子數
+        blocked = 0  # 是否被阻擋
+        
+        # 暫時放置棋子以評估
+        original = board.grid[r][c]
+        board.grid[r][c] = piece
+        
+        for dx, dy in direction:
+            blocked_end = False
+            for step in range(1, 5):
+                nr, nc = r + dx * step, c + dy * step
+                if 0 <= nr < board.size and 0 <= nc < board.size:
+                    if board.grid[nr][nc] == piece:
+                        consecutive += 1
+                    elif board.grid[nr][nc] == '-':
+                        empty_ends += 1
+                        break
+                    else:
+                        blocked_end = True
+                        break
+                else:
+                    blocked_end = True
+                    break
+            
+            if blocked_end:
+                blocked += 1
+        
+        # 恢復原來的位置
+        board.grid[r][c] = original
+        
+        # 基於連續棋子數和兩端情況評分
+        if consecutive == 4:
+            line_score = 1000  # 必勝
+        elif consecutive == 3:
+            if empty_ends == 2:
+                line_score = 100  # 活三
+            else:
+                line_score = 10  # 死三
+        elif consecutive == 2:
+            if empty_ends == 2:
+                line_score = 5   # 活二
+            else:
+                line_score = 3   # 死二
+        elif consecutive == 1:
+            line_score = 1
+        
+        # 如果兩端都被堵住，分數大幅降低
+        if blocked == 2:
+            line_score /= 4
+            
+        return line_score
+    
+    # 找出最佳位置
+    best_score = -float('inf')
+    best_positions = []
+    
+    for r in range(board.size):
+        for c in range(board.size):
+            if board.is_valid_move(r, c):
+                pos_score = score_position(r, c)
+                if pos_score > best_score:
+                    best_score = pos_score
+                    best_positions = [(r, c)]
+                elif pos_score == best_score:
+                    best_positions.append((r, c))
+    
+    # 如果棋盤為空，優先下在中心位置
+    if all(board.grid[r][c] == '-' for r in range(board.size) for c in range(board.size)):
+        center = board.size // 2
+        row, col = center, center
+    else:
+        # 從最佳位置中隨機選擇一個
+        row, col = random.choice(best_positions) if best_positions else (board.size // 2, board.size // 2)
+    
+    board.make_move(row, col, player)
+    print(f'電腦({player})下在: {hex(row)[2:]}{hex(col)[2:]}')
+    return row, col
 
-def chess(o, x):
-    b = Board(16, 16) #  建立棋盤
-    b.show()            #  顯示棋盤
-    while (True):
-        if o.upper()=='P':
-            peopleTurn(b, 'o')
+def play_game(player_o, player_x):
+    board = Board()
+    board.display()
+    
+    last_move = None
+    
+    while True:
+        # 玩家 o 的回合
+        if player_o.upper() == 'P':
+            row, col = human_turn(board, 'o')
         else:
-            computerTurn(b, 'o')
-        b.show()         #  顯示棋盤現況
-        winCheck(b, 'o') #  檢查下了這子之後是否贏了！
-        time.sleep(2)
-        if x.upper()=='P':
-            peopleTurn(b, 'x')
+            row, col = computer_turn(board, 'o')
+            time.sleep(1)  # 讓電腦思考看起來更真實
+        
+        board.display()
+        
+        # 檢查是否獲勝
+        if board.check_win(row, col, 'o'):
+            print('o 獲勝！')
+            break
+        
+        # 檢查是否平局
+        if board.is_full():
+            print('平局！')
+            break
+        
+        # 玩家 x 的回合
+        if player_x.upper() == 'P':
+            row, col = human_turn(board, 'x')
         else:
-            computerTurn(b, 'x')
-        b.show()
-        winCheck(b, 'x')
-        time.sleep(2)
+            row, col = computer_turn(board, 'x')
+            time.sleep(1)  # 讓電腦思考看起來更真實
+        
+        board.display()
+        
+        # 檢查是否獲勝
+        if board.check_win(row, col, 'x'):
+            print('x 獲勝！')
+            break
+        
+        # 檢查是否平局
+        if board.is_full():
+            print('平局！')
+            break
 
-o, x = sys.argv[1], sys.argv[2]
-chess(o, x)
+if __name__ == "__main__":
+    # 如果沒有足夠的命令行參數，給出預設值
+    if len(sys.argv) < 3:
+        print('使用方式: python gomoku_claude.py [o玩家類型] [x玩家類型]')
+        print('玩家類型: P=人類, C=電腦')
+        print('預設使用: P C (人類對電腦)')
+        player_o, player_x = 'P', 'C'
+    else:
+        player_o, player_x = sys.argv[1], sys.argv[2]
+    
+    play_game(player_o, player_x)
